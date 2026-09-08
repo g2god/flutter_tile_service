@@ -1,0 +1,53 @@
+group 'com.example.flutter_tile_service'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.3'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.example.flutter_tile_service'
+    compileSdk 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        minSdkVersion 24
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.15.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

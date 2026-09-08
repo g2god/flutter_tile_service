@@ -1,0 +1,53 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.flutter_tile_service">
+
+    <application>
+        <!-- Slot 0 -->
+        <service
+            android:name=".TileService0"
+            android:label="Quick Settings Tile 0"
+            android:icon="@drawable/ic_tile_default"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Slot 1 -->
+        <service
+            android:name=".TileService1"
+            android:label="Quick Settings Tile 1"
+            android:icon="@drawable/ic_tile_default"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Slot 2 -->
+        <service
+            android:name=".TileService2"
+            android:label="Quick Settings Tile 2"
+            android:icon="@drawable/ic_tile_default"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Slot 3 -->
+        <service
+            android:name=".TileService3"
+            android:label="Quick Settings Tile 3"
+            android:icon="@drawable/ic_tile_default"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
