@@ -7,24 +7,78 @@ void main() async {
   runApp(const TileDemoApp());
 }
 
+/// Demonstration presets to easily showcase diverse Quick Settings use cases in demo videos.
+class TilePreset {
+  final String id;
+  final String label;
+  final String activeLabel;
+  final String inactiveLabel;
+  final String description;
+  final IconData icon;
+
+  const TilePreset({
+    required this.id,
+    required this.label,
+    required this.activeLabel,
+    required this.inactiveLabel,
+    required this.description,
+    required this.icon,
+  });
+}
+
+final List<TilePreset> demoPresets = [
+  const TilePreset(
+    id: 'focus_mode',
+    label: 'Focus Mode',
+    activeLabel: 'Focus ON',
+    inactiveLabel: 'Focus OFF',
+    description: 'Do Not Disturb Active',
+    icon: Icons.do_not_disturb_on_outlined,
+  ),
+  const TilePreset(
+    id: 'vpn_shield',
+    label: 'VPN Shield',
+    activeLabel: 'Secured',
+    inactiveLabel: 'Unsecured',
+    description: 'Ultra Fast Gateway',
+    icon: Icons.shield_outlined,
+  ),
+  const TilePreset(
+    id: 'mic_mute',
+    label: 'Microphone',
+    activeLabel: 'Muted',
+    inactiveLabel: 'Live',
+    description: 'System Audio Control',
+    icon: Icons.mic_off_outlined,
+  ),
+  const TilePreset(
+    id: 'quick_counter',
+    label: 'Quick Counter',
+    activeLabel: 'Active',
+    inactiveLabel: 'Idle',
+    description: 'Taps recorded: 0',
+    icon: Icons.timer_outlined,
+  ),
+];
+
 class TileDemoApp extends StatelessWidget {
   const TileDemoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Quick Settings Tile Demo',
+      title: 'Quick Settings Tile Showcase',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
+          seedColor: const Color(0xFF3B82F6),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
+          seedColor: const Color(0xFF3B82F6),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
@@ -48,8 +102,9 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
   final List<String> _eventLogs = [];
   StreamSubscription<TileEvent>? _eventSubscription;
 
-  // Track Attendance Demo State
-  bool _isClockedIn = false;
+  // Selected active demo preset for quick presentation
+  TilePreset _activePreset = demoPresets[0];
+  int _counter = 0;
 
   @override
   void initState() {
@@ -77,8 +132,8 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
           _onTileEventReceived(event);
         });
 
-        // Automatically register the Attendance reference tile if not present
-        await _ensureAttendanceTileRegistered();
+        // Ensure initial primary demo tile is registered
+        await _applyPreset(_activePreset, notify: false);
 
         // Refresh snapshot list
         await _refreshTiles();
@@ -90,37 +145,41 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
     }
   }
 
-  Future<void> _ensureAttendanceTileRegistered() async {
-    final existing = await FlutterTileService.getTile('attendance');
-    if (existing == null) {
+  Future<void> _applyPreset(TilePreset preset, {bool notify = true}) async {
+    setState(() {
+      _activePreset = preset;
+    });
+
+    try {
       await FlutterTileService.registerTile(
-        const TileConfig(
-          id: 'attendance',
-          label: 'Attendance',
-          activeLabel: 'IN',
-          inactiveLabel: 'OUT',
-          description: 'Tap to punch attendance',
+        TileConfig(
+          id: preset.id,
+          label: preset.label,
+          activeLabel: preset.activeLabel,
+          inactiveLabel: preset.inactiveLabel,
+          description: preset.description,
           initialState: TileState.inactive,
           autoToggleState: true,
         ),
       );
-      _log('Registered default "attendance" tile.');
-    } else {
-      setState(() {
-        _isClockedIn = existing.state == TileState.active;
-      });
+      if (notify) {
+        _log('Switched to preset: "${preset.label}" (ID: ${preset.id})');
+      }
+      await _refreshTiles();
+    } catch (e) {
+      _log('Failed to apply preset: $e');
     }
   }
 
   Future<void> _refreshTiles() async {
-    final tiles = await FlutterTileService.getTiles();
-    setState(() {
-      _registeredTiles = tiles;
-      final attendance = tiles.where((t) => t.id == 'attendance').firstOrNull;
-      if (attendance != null) {
-        _isClockedIn = attendance.state == TileState.active;
-      }
-    });
+    try {
+      final tiles = await FlutterTileService.getTiles();
+      setState(() {
+        _registeredTiles = tiles;
+      });
+    } catch (e) {
+      _log('Error fetching tiles: $e');
+    }
   }
 
   void _onTileEventReceived(TileEvent event) {
@@ -133,111 +192,144 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
 
     if (event is TileClickedEvent) {
       _log(
-          '[$timeStr] CLICKED: tileId="${event.tileId}" state=${event.state.name} isLocked=${event.isLocked}');
-      if (event.tileId == 'attendance') {
-        setState(() {
-          _isClockedIn = event.state == TileState.active;
-        });
-        // Execute business logic (e.g. record punch timestamp)
-        _handleAttendanceBusinessLogic(_isClockedIn);
+          '[$timeStr] 🖱️ CLICKED: "${event.tileId}" (state: ${event.state.name}, locked: ${event.isLocked})');
+
+      if (event.tileId == 'quick_counter') {
+        _counter++;
+        FlutterTileService.updateTile(
+          id: 'quick_counter',
+          description: 'Taps recorded: $_counter',
+        );
       }
     } else if (event is TileAddedEvent) {
-      _log(
-          '[$timeStr] ADDED TO QS: tileId="${event.tileId}" slot=${event.slot}');
+      _log('[$timeStr] ➕ ADDED TO QS: "${event.tileId}" (Slot #${event.slot})');
     } else if (event is TileRemovedEvent) {
       _log(
-          '[$timeStr] REMOVED FROM QS: tileId="${event.tileId}" slot=${event.slot}');
+          '[$timeStr] ➖ REMOVED FROM QS: "${event.tileId}" (Slot #${event.slot})');
     } else if (event is TileListeningStartedEvent) {
-      _log(
-          '[$timeStr] LISTENING START: tileId="${event.tileId}" slot=${event.slot}');
+      _log('[$timeStr] 👁️ LISTENING START: "${event.tileId}"');
     } else if (event is TileListeningStoppedEvent) {
-      _log(
-          '[$timeStr] LISTENING STOP: tileId="${event.tileId}" slot=${event.slot}');
+      _log('[$timeStr] 🛑 LISTENING STOP: "${event.tileId}"');
     }
 
     _refreshTiles();
   }
 
-  void _handleAttendanceBusinessLogic(bool isClockedIn) {
-    final status = isClockedIn ? 'CLOCKED IN' : 'CLOCKED OUT';
-    _log('⚡ [App Logic] Attendance status updated: $status');
-  }
-
   void _log(String message) {
     setState(() {
       _eventLogs.insert(0, message);
-      if (_eventLogs.length > 50) {
+      if (_eventLogs.length > 60) {
         _eventLogs.removeLast();
       }
     });
   }
 
-  Future<void> _toggleAttendanceFromApp() async {
-    final nextState = _isClockedIn ? TileState.inactive : TileState.active;
-    final nextLabel = nextState == TileState.active ? 'IN' : 'OUT';
-    final nextDesc =
-        nextState == TileState.active ? 'Clocked In' : 'Clocked Out';
+  TileSnapshot? get _primaryTile {
+    return _registeredTiles.where((t) => t.id == _activePreset.id).firstOrNull;
+  }
+
+  Future<void> _togglePrimaryTile() async {
+    final tile = _primaryTile;
+    final isCurrentlyActive = tile?.state == TileState.active;
+    final nextState = isCurrentlyActive ? TileState.inactive : TileState.active;
+    final nextLabel = nextState == TileState.active
+        ? _activePreset.activeLabel
+        : _activePreset.inactiveLabel;
 
     try {
       await FlutterTileService.updateTile(
-        id: 'attendance',
+        id: _activePreset.id,
         state: nextState,
         label: nextLabel,
-        description: nextDesc,
       );
-      setState(() {
-        _isClockedIn = nextState == TileState.active;
-      });
-      _log('App toggled attendance tile to: ${nextState.name}');
+      _log(
+          'Toggled "${_activePreset.label}" to ${nextState.name.toUpperCase()}');
       await _refreshTiles();
     } catch (e) {
-      _log('Failed to update attendance tile: $e');
+      _log('Error toggling tile: $e');
     }
   }
 
-  Future<void> _requestAddTileToSystem(String tileId) async {
-    _log('Requesting system to add tile: $tileId...');
+  Future<void> _cycleTileState(String tileId, TileState current) async {
+    TileState next;
+    switch (current) {
+      case TileState.inactive:
+        next = TileState.active;
+        break;
+      case TileState.active:
+        next = TileState.unavailable;
+        break;
+      case TileState.unavailable:
+        next = TileState.inactive;
+        break;
+    }
+
+    try {
+      await FlutterTileService.updateTile(
+        id: tileId,
+        state: next,
+      );
+      _log('Updated "$tileId" state -> ${next.name.toUpperCase()}');
+      await _refreshTiles();
+    } catch (e) {
+      _log('Error cycling state: $e');
+    }
+  }
+
+  Future<void> _requestAddToSystem(String tileId) async {
+    _log('Requesting Android system prompt for: $tileId...');
     try {
       final result = await FlutterTileService.requestAddTile(tileId);
-      _log('System response for $tileId: ${result.name}');
+      _log('System prompt response: ${result.name}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Quick Settings add request result: ${result.name}'),
+            content: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Add Tile Prompt Result: ${result.name}'),
+                ),
+              ],
+            ),
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      _log('Error requesting tile addition: $e');
+      _log('Add request error: $e');
     }
   }
 
-  Future<void> _registerNewCustomTile() async {
-    final slotIndex = _registeredTiles.length;
-    final id = 'tile_custom_$slotIndex';
-    final label = 'Slot $slotIndex Tile';
+  Future<void> _addNewCustomTile() async {
+    final slotIndex = _registeredTiles.length + 1;
+    final id = 'custom_tile_$slotIndex';
+    final label = 'Quick Slot $slotIndex';
 
     try {
       await FlutterTileService.registerTile(
         TileConfig(
           id: id,
           label: label,
-          activeLabel: 'ON',
-          inactiveLabel: 'OFF',
-          description: 'Custom registered tile',
+          activeLabel: 'Active',
+          inactiveLabel: 'Standby',
+          description: 'Custom registered slot',
           initialState: TileState.inactive,
+          autoToggleState: true,
         ),
       );
-      _log('Registered custom tile "$id"');
+      _log('Registered new slot: "$id"');
       await _refreshTiles();
     } catch (e) {
-      _log('Failed to register custom tile: $e');
+      _log('Registration failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Registration failed: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -250,8 +342,60 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
       _log('Unregistered tile "$id"');
       await _refreshTiles();
     } catch (e) {
-      _log('Failed to unregister tile $id: $e');
+      _log('Failed to unregister "$id": $e');
     }
+  }
+
+  void _showEditTileDialog(TileSnapshot tile) {
+    final labelController = TextEditingController(text: tile.currentLabel);
+    final descController =
+        TextEditingController(text: tile.currentDescription ?? '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Tile "${tile.id}"'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelController,
+              decoration: const InputDecoration(
+                labelText: 'Display Label',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Subtitle / Description',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await FlutterTileService.updateTile(
+                id: tile.id,
+                label: labelController.text.trim(),
+                description: descController.text.trim(),
+              );
+              _log('Updated metadata for "${tile.id}"');
+              await _refreshTiles();
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -260,13 +404,22 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
 
     if (_isLoading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Initializing Quick Settings Service...'),
+            ],
+          ),
+        ),
       );
     }
 
     if (!_isSupported) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quick Settings Tiles')),
+        appBar: AppBar(title: const Text('Quick Settings Showcase')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -277,7 +430,7 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
                     size: 64, color: Colors.orange),
                 const SizedBox(height: 16),
                 Text(
-                  'Quick Settings Tiles Not Supported',
+                  'Quick Settings Not Supported',
                   style: theme.textTheme.headlineSmall,
                   textAlign: TextAlign.center,
                 ),
@@ -295,11 +448,18 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quick Settings Tile Manager'),
+        title: const Row(
+          children: [
+            Icon(Icons.dashboard_customize_outlined, size: 22),
+            SizedBox(width: 8),
+            Text('Quick Settings Tile Demo'),
+          ],
+        ),
+        elevation: 1,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Sync Native Tiles',
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sync Native Tile State',
             onPressed: _refreshTiles,
           ),
         ],
@@ -307,96 +467,271 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
       body: RefreshIndicator(
         onRefresh: _refreshTiles,
         child: ListView(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           children: [
-            // Section 1: Reference Attendance Tile Card
-            _buildAttendanceHeroCard(theme),
+            // 1. Preset Switcher for Demo Showcase
+            _buildPresetSelector(theme),
+            const SizedBox(height: 12),
+
+            // 2. Interactive Android QS Tile Visual Simulator & Controller
+            _buildInteractiveSimulatorCard(theme),
             const SizedBox(height: 16),
 
-            // Section 2: Registered Tiles List
-            _buildRegisteredTilesSection(theme),
+            // 3. Registered Native Slots Section
+            _buildRegisteredSlotsSection(theme),
             const SizedBox(height: 16),
 
-            // Section 3: Live Native Event Logger
-            _buildEventLogSection(theme),
+            // 4. Real-time Live Event Log
+            _buildLiveEventLogSection(theme),
+            const SizedBox(height: 80),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _registerNewCustomTile,
+        onPressed: _registeredTiles.length >= 4 ? null : _addNewCustomTile,
         icon: const Icon(Icons.add_to_home_screen),
-        label: const Text('Add Tile Slot'),
+        label: Text(
+          _registeredTiles.length >= 4 ? 'Max Slots Reached' : 'Add Tile Slot',
+        ),
       ),
     );
   }
 
-  Widget _buildAttendanceHeroCard(ThemeData theme) {
+  /// Preset selector chips to easily switch use-cases on camera during a demo.
+  Widget _buildPresetSelector(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome,
+                size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              'DEMO PRESETS',
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.1,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: demoPresets.map((preset) {
+              final isSelected = _activePreset.id == preset.id;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ChoiceChip(
+                  avatar: Icon(
+                    preset.icon,
+                    size: 18,
+                    color: isSelected ? theme.colorScheme.onPrimary : null,
+                  ),
+                  label: Text(preset.label),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    if (selected) {
+                      _applyPreset(preset);
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Interactive Card containing a simulated native Android Quick Settings pill tile
+  /// along with one-tap demo triggers.
+  Widget _buildInteractiveSimulatorCard(ThemeData theme) {
+    final tile = _primaryTile;
+    final currentState = tile?.state ?? TileState.inactive;
+    final isActive = currentState == TileState.active;
+    final isUnavailable = currentState == TileState.unavailable;
+
+    // Simulated Quick Settings visual style
+    Color tileBgColor;
+    Color tileFgColor;
+    if (isActive) {
+      tileBgColor = theme.colorScheme.primary;
+      tileFgColor = theme.colorScheme.onPrimary;
+    } else if (isUnavailable) {
+      tileBgColor = theme.colorScheme.surfaceContainerHighest.withAlpha(120);
+      tileFgColor = theme.colorScheme.outline;
+    } else {
+      tileBgColor = theme.colorScheme.surfaceContainerHighest;
+      tileFgColor = theme.colorScheme.onSurface;
+    }
+
+    final displayLabel = tile?.currentLabel ?? _activePreset.label;
+    final displayDesc = tile?.currentDescription ?? _activePreset.description;
+
     return Card(
       elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Interactive Tile Simulator',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Live sync with Android Quick Settings shade',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _isClockedIn
-                        ? Colors.green.withAlpha(50)
-                        : Colors.grey.withAlpha(50),
-                    shape: BoxShape.circle,
+                    color: isActive
+                        ? Colors.green.withAlpha(40)
+                        : (isUnavailable
+                            ? Colors.grey.withAlpha(40)
+                            : Colors.blueGrey.withAlpha(40)),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.badge_outlined,
-                    color: _isClockedIn ? Colors.green : Colors.grey,
-                    size: 28,
+                  child: Text(
+                    currentState.name.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isActive
+                          ? Colors.green
+                          : (isUnavailable ? Colors.grey : Colors.blueGrey),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Attendance Tile',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        _isClockedIn
-                            ? 'Status: CLOCKED IN'
-                            : 'Status: CLOCKED OUT',
-                        style: TextStyle(
-                          color: _isClockedIn ? Colors.green : Colors.grey,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: _isClockedIn,
-                  onChanged: (_) => _toggleAttendanceFromApp(),
                 ),
               ],
             ),
-            const Divider(height: 24),
-            Text(
-              'Try pulling down your Android notification shade and tapping the Attendance tile. It updates natively even when this app is closed or backgrounded.',
-              style: theme.textTheme.bodySmall,
+            const SizedBox(height: 16),
+
+            // Live Android QS Tile Visual Pill
+            Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 340),
+                decoration: BoxDecoration(
+                  color: tileBgColor,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withAlpha(80),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(28),
+                    onTap: _togglePrimaryTile,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18.0, vertical: 14.0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isActive
+                                  ? Colors.white.withAlpha(50)
+                                  : theme.colorScheme.surface.withAlpha(150),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _activePreset.icon,
+                              color: tileFgColor,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayLabel,
+                                  style: TextStyle(
+                                    color: tileFgColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  displayDesc,
+                                  style: TextStyle(
+                                    color: tileFgColor.withAlpha(200),
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.touch_app_rounded,
+                            color: tileFgColor.withAlpha(160),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
+
+            // Demo Control Action Chips
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _requestAddTileToSystem('attendance'),
-                  icon: const Icon(Icons.add_circle_outline, size: 18),
-                  label: const Text('Add to Quick Settings (Android 13+)'),
+                ActionChip.elevated(
+                  avatar: const Icon(Icons.sync_alt, size: 16),
+                  label: const Text('Toggle State'),
+                  onPressed: _togglePrimaryTile,
+                ),
+                ActionChip.elevated(
+                  avatar: const Icon(Icons.change_circle_outlined, size: 16),
+                  label: const Text('Cycle State (Active/Inactive/Off)'),
+                  onPressed: () =>
+                      _cycleTileState(_activePreset.id, currentState),
+                ),
+                ActionChip.elevated(
+                  avatar:
+                      const Icon(Icons.add_to_home_screen_outlined, size: 16),
+                  label: const Text('Add to System QS (Android 13+)'),
+                  onPressed: () => _requestAddToSystem(_activePreset.id),
                 ),
               ],
             ),
@@ -406,7 +741,8 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
     );
   }
 
-  Widget _buildRegisteredTilesSection(ThemeData theme) {
+  /// Registered native slots overview
+  Widget _buildRegisteredSlotsSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -414,78 +750,117 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Native Tile Slots (${_registeredTiles.length}/4)',
-              style: theme.textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              'Registered Native Slots (${_registeredTiles.length}/4)',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
               'Persisted Natively',
-              style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         if (_registeredTiles.isEmpty)
-          const Card(
-            child: Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('No tiles registered. Tap "+ Add Tile Slot" below.'),
+          Card(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Center(
+                child:
+                    Text('No tiles registered. Tap "+ Add Tile Slot" below.'),
+              ),
             ),
           )
         else
-          ..._registeredTiles.map((tile) => _buildTileCard(tile, theme)),
+          ..._registeredTiles.map((tile) => _buildSlotCard(tile, theme)),
       ],
     );
   }
 
-  Widget _buildTileCard(TileSnapshot tile, ThemeData theme) {
+  Widget _buildSlotCard(TileSnapshot tile, ThemeData theme) {
     final isActive = tile.state == TileState.active;
     final isUnavailable = tile.state == TileState.unavailable;
 
+    Color badgeColor;
+    if (isActive) {
+      badgeColor = Colors.green;
+    } else if (isUnavailable) {
+      badgeColor = Colors.grey;
+    } else {
+      badgeColor = Colors.blueGrey;
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isUnavailable
-              ? Colors.grey.shade400
-              : (isActive ? theme.colorScheme.primary : Colors.grey.shade700),
+          backgroundColor: badgeColor.withAlpha(40),
           child: Text(
             '#${tile.slot}',
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: badgeColor,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        title: Text(
-          '${tile.config.id} (${tile.currentLabel})',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                tile.currentLabel,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: badgeColor.withAlpha(30),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                tile.state.name.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ],
         ),
-        subtitle: Text(
-          'State: ${tile.state.name.toUpperCase()} • Slot: TileService${tile.slot}\n'
-          'Desc: ${tile.currentDescription ?? "None"}',
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            'ID: ${tile.id} • Slot: Service${tile.slot}\n'
+            'Subtitle: ${tile.currentDescription ?? "None"}',
+            style: const TextStyle(fontSize: 12),
+          ),
         ),
         isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.touch_app_outlined),
-              tooltip: 'Toggle state from app',
-              onPressed: () async {
-                final next = tile.state == TileState.active
-                    ? TileState.inactive
-                    : TileState.active;
-                await FlutterTileService.updateTile(
-                  id: tile.id,
-                  state: next,
-                  label: next == TileState.active ? 'ON' : 'OFF',
-                );
-                await _refreshTiles();
-              },
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Edit Tile Metadata',
+              onPressed: () => _showEditTileDialog(tile),
             ),
-            if (tile.id != 'attendance')
+            IconButton(
+              icon: const Icon(Icons.sync_alt, size: 20),
+              tooltip: 'Toggle state',
+              onPressed: () => _cycleTileState(tile.id, tile.state),
+            ),
+            if (tile.id != _activePreset.id)
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                tooltip: 'Unregister tile',
+                icon: const Icon(Icons.delete_outline,
+                    size: 20, color: Colors.redAccent),
+                tooltip: 'Unregister tile slot',
                 onPressed: () => _unregisterTile(tile.id),
               ),
           ],
@@ -494,10 +869,11 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
     );
   }
 
-  Widget _buildEventLogSection(ThemeData theme) {
+  /// Real-time live event log section with clear, colored logs
+  Widget _buildLiveEventLogSection(ThemeData theme) {
     return Card(
-      color: theme.colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: theme.colorScheme.surfaceContainerHighest.withAlpha(120),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -508,44 +884,51 @@ class _TileControlDashboardState extends State<TileControlDashboard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.history, size: 20),
+                    Icon(Icons.sensors,
+                        size: 20, color: theme.colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(
-                      'Live Event Log',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                      'Live Event Feed',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
-                TextButton(
+                TextButton.icon(
                   onPressed: () => setState(() => _eventLogs.clear()),
-                  child: const Text('Clear'),
+                  icon: const Icon(Icons.clear_all, size: 16),
+                  label: const Text('Clear'),
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(height: 16),
             if (_eventLogs.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(
-                  'No events received yet. Interact with Quick Settings in Android to see live events.',
-                  style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                padding: EdgeInsets.symmetric(vertical: 12.0),
+                child: Center(
+                  child: Text(
+                    'No events yet. Pull down Android notification shade or tap simulator above.',
+                    style: TextStyle(fontStyle: FontStyle.italic, fontSize: 12),
+                  ),
                 ),
               )
             else
               Container(
-                constraints: const BoxConstraints(maxHeight: 200),
+                constraints: const BoxConstraints(maxHeight: 180),
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: _eventLogs.length,
                   itemBuilder: (context, index) {
+                    final log = _eventLogs[index];
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2.0),
                       child: Text(
-                        _eventLogs[index],
+                        log,
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 11,
+                          height: 1.3,
                         ),
                       ),
                     );
