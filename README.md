@@ -44,7 +44,7 @@ Easily register, configure, update, query, and receive real-time events from Qui
          │                                                               │
 ┌────────▼────────┐                                             ┌────────▼────────┐
 │  TileService0   │  (Pre-declared in Plugin AndroidManifest)   │  TileService3   │
-│ (Attendance ID) │                                             │   (Custom ID)   │
+│ (QuickToggle ID)│                                             │   (Custom ID)   │
 └────────┬────────┘                                             └────────┬────────┘
          │                                                               │
 ═════════╪═══════════════════════════════════════════════════════════════╪═════
@@ -95,18 +95,18 @@ void main() async {
   FlutterTileService.events.listen((event) {
     if (event is TileClickedEvent) {
       print('User tapped tile: ${event.tileId}, state is now: ${event.state.name}');
-      // Trigger your app logic (e.g. record punch, send network request, etc.)
+      // Trigger your app logic (e.g. toggle feature, sync data, send request, etc.)
     }
   });
 
   // 3. Register a Quick Settings Tile
   await FlutterTileService.registerTile(
     const TileConfig(
-      id: 'attendance',
-      label: 'Attendance',
-      activeLabel: 'IN',
-      inactiveLabel: 'OUT',
-      description: 'Daily Attendance Punch',
+      id: 'quick_toggle',
+      label: 'Quick Mode',
+      activeLabel: 'ON',
+      inactiveLabel: 'OFF',
+      description: 'Tap to toggle mode',
       initialState: TileState.inactive,
       autoToggleState: true, // Native state automatically flips on click even if app is dead
     ),
@@ -126,10 +126,10 @@ Update the tile's state or text whenever your Flutter app state changes:
 
 ```dart
 await FlutterTileService.updateTile(
-  id: 'attendance',
+  id: 'quick_toggle',
   state: TileState.active,
-  label: 'IN',
-  description: 'Clocked In at 9:00 AM',
+  label: 'ON',
+  description: 'Service active',
 );
 ```
 
@@ -138,7 +138,7 @@ await FlutterTileService.updateTile(
 On Android 13 (API 33) and above, prompt the user with a system dialog to add the tile directly to their Quick Settings panel:
 
 ```dart
-final result = await FlutterTileService.requestAddTile('attendance');
+final result = await FlutterTileService.requestAddTile('quick_toggle');
 
 switch (result) {
   case TileAddResult.added:
@@ -187,14 +187,14 @@ Android's Quick Settings `TileService` is a system service that can be invoked a
 ## Custom Tile Icons
 
 To use a custom native drawable icon:
-1. Place your vector drawable XML or PNG in your Android project's `android/app/src/main/res/drawable/` folder (e.g. `ic_punch_clock.xml`).
+1. Place your vector drawable XML or PNG in your Android project's `android/app/src/main/res/drawable/` folder (e.g. `ic_quick_mode.xml`).
 2. Specify the resource name without file extension in `TileConfig`:
 
 ```dart
 TileConfig(
-  id: 'attendance',
-  label: 'Attendance',
-  iconResourceName: 'ic_punch_clock',
+  id: 'quick_toggle',
+  label: 'Quick Mode',
+  iconResourceName: 'ic_quick_mode',
 )
 ```
 
@@ -206,7 +206,7 @@ If not specified or not found, the plugin defaults to a clean, universal checkma
 
 Android requires all `TileService` classes to be declared in `AndroidManifest.xml`. To give you maximum flexibility out of the box without manual XML editing, `flutter_tile_service` pre-declares **4 service slots** (`TileService0` through `TileService3`).
 
-You can register up to 4 distinct tiles simultaneously using logical IDs (`'attendance'`, `'vpn'`, `'meeting_mode'`, etc.). The plugin maps each ID to an available slot automatically.
+You can register up to 4 distinct tiles simultaneously using logical IDs (`'quick_toggle'`, `'vpn'`, `'sync_status'`, `'dnd_mode'`, etc.). The plugin maps each ID to an available slot automatically.
 
 ---
 
@@ -235,12 +235,12 @@ You can register up to 4 distinct tiles simultaneously using logical IDs (`'atte
 ## Manual Verification Checklist
 
 1. **Install App**: Run `flutter run` on an Android device (API 24+).
-2. **Register Tile**: Open app and verify `attendance` is registered.
+2. **Register Tile**: Open app and verify `quick_toggle` is registered.
 3. **Add to QS**: Pull down Android Quick Settings panel, tap edit pencil (or tap "Add to Quick Settings" in app on Android 13+), and drag the tile into your active grid.
-4. **Tap Tile (App Open)**: Tap the tile in QS shade; verify that the tile turns active ("IN") and the app's live event log reflects the click event.
+4. **Tap Tile (App Open)**: Tap the tile in QS shade; verify that the tile turns active ("ON") and the app's live event log reflects the click event.
 5. **Kill App**: Swipe away / force close the Flutter app.
-6. **Tap Tile (App Killed)**: Tap the QS tile again; verify that it smoothly toggles to inactive ("OUT") in native UI without crashing.
-7. **Reopen App**: Launch the Flutter app and verify that the dashboard immediately reflects the updated "OUT" state.
+6. **Tap Tile (App Killed)**: Tap the QS tile again; verify that it smoothly toggles to inactive ("OFF") in native UI without crashing.
+7. **Reopen App**: Launch the Flutter app and verify that the dashboard immediately reflects the updated "OFF" state.
 
 ---
 
